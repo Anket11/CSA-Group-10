@@ -85,7 +85,7 @@ public class Assembler {
             if (parameters[0].equals("Data")) {
                 if (parameters.length < 2) {
                     System.out.println("Data missing " + currentAddress);
-                    listingFileContent.add(String.format("%06o       %s ; ERROR: Missing value", currentAddress, originalLine));
+                    listingFileContent.add(String.format("%06o       %s ; Missing value", currentAddress, originalLine));
                     currentAddress++;
                     continue;
                 }
@@ -98,7 +98,7 @@ public class Assembler {
                     lastAddress = Math.max(lastAddress, currentAddress);
                 } else {
                     System.out.println("Invalid value " + currentAddress);
-                    listingFileContent.add(String.format("%06o       %s ; ERROR: Undefined label or invalid value", currentAddress, originalLine));
+                    listingFileContent.add(String.format("%06o       %s ; Undefined label or invalid value", currentAddress, originalLine));
                 }
                 currentAddress++;
             } else if (parameters[0].endsWith(":")) {
@@ -118,7 +118,7 @@ public class Assembler {
                     listingFileContent.add(String.format("      %s", originalLine));
                 }
             }
-            // Rest instructions
+            // Rest of the instructions
             else {
                 String translatedInstruction = translateInstruction(parameters);
                 if (!translatedInstruction.equals("Invalid Instruction")) {
