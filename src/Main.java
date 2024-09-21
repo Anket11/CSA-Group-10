@@ -9,7 +9,7 @@ public class Main {
         String loadFile = "load.txt";
         String listingFile = "listing.txt";
         // Assemble the source code and generate the output files
-        assembler.readSourceFile(sourceFile);
+        assembler.readInstructionFile(sourceFile);
         assembler.firstPass();
         assembler.secondPass();
         assembler.writeFiles(listingFile, loadFile);

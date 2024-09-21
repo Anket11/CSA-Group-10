@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="AssemblerGroup10:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/AssemblerGroup10_jar</output-path>
+    <root id="archive" name="AssemblerGroup10.jar">
+      <element id="module-output" name="AssemblerGroup10" />
+    </root>
+  </artifact>
+</component>

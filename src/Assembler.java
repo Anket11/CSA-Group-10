@@ -1,53 +1,51 @@
 import java.io.*;
 import java.util.*;
 
-
 public class Assembler {
-
-    // Variable needed
+    // Our trusty variables
     private HashMap<String, Integer> labelAddressMap = new HashMap<>();
     private ArrayList<String> sourceLines = new ArrayList<>();
     private int currentAddress = 0;
-    private TreeMap<Integer, String> loadFileContent = new TreeMap<>();
-    private ArrayList<String> listingFileContent = new ArrayList<>();
+    private TreeMap<Integer, String> loadFile = new TreeMap<>();
+    private ArrayList<String> listingFile = new ArrayList<>();
     private int lastAddress = 0;
 
     private InstructionTranslator translator;
 
-    // Call constructor
+    // Fire it up
     public Assembler() {
         this.translator = new InstructionTranslator(labelAddressMap, currentAddress);
     }
 
-    // Store instruction Lines in sourceLines Map
-    public void readSourceFile(String filename) {
+    // Grab the source code
+    public void readInstructionFile(String filename) {
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
-            String instructionLine;
-            while ((instructionLine = reader.readLine()) != null) {
-                sourceLines.add(instructionLine.trim());
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sourceLines.add(line.trim());
             }
-        } catch (IOException e) {
-            System.out.println("Error in reading file " + e.getMessage());
+        } catch (IOException oops) {
+            System.out.println("Yikes! Couldn't read the file: " + oops.getMessage());
         }
     }
 
-    // First Pass to store addresses corresponding to labels
+    // First sweep: map out the labels
     public void firstPass() {
         currentAddress = 0;
-        for (String instructionLine : sourceLines) {
-            instructionLine = instructionLine.split(";")[0].trim(); // Remove comments
-            if (instructionLine.isEmpty()) continue;
+        for (String line : sourceLines) {
+            line = line.split(";")[0].trim(); // Ditch comments
+            if (line.isEmpty()) continue;
 
-            String[] parameters = instructionLine.split("\\s+");
-            if (parameters.length == 0) continue;
+            String[] bits = line.split("\\s+");
+            if (bits.length == 0) continue;
 
-            if (parameters[0].equals("LOC")) {
-                currentAddress = Integer.parseInt(parameters[1]);
+            if (bits[0].equals("LOC")) {
+                currentAddress = Integer.parseInt(bits[1]);
                 continue;
             }
 
-            if (parameters[0].endsWith(":")) {
-                String label = parameters[0].substring(0, parameters[0].length() - 1);
+            if (bits[0].endsWith(":")) {
+                String label = bits[0].substring(0, bits[0].length() - 1);
                 labelAddressMap.put(label, currentAddress);
                 translator.updateLabelAddressMap(label, currentAddress);
                 continue;
@@ -55,91 +53,97 @@ public class Assembler {
 
             currentAddress++;
         }
-
     }
 
-    // Second Pass to translate instructions to Binary then Octal
+    // Second sweep: translate to machine code
     public void secondPass() {
         currentAddress = 0;
-        for (String instructionLine : sourceLines) {
+        for (String line : sourceLines) {
             translator.setCurrentAddress(currentAddress);
-            String originalLine = instructionLine;
-            instructionLine = instructionLine.split(";")[0].trim(); // Remove comments
-            if (instructionLine.isEmpty()) {
-                listingFileContent.add(originalLine);
+            String originalLine = line;
+            line = line.split(";")[0].trim(); // Ditch comments
+            if (line.isEmpty()) {
+                listingFile.add(originalLine);
                 continue;
             }
 
-            String[] parameters = instructionLine.split("\\s+", 2); // Split into 2 parts
-            if (parameters.length == 0) {
-                listingFileContent.add(originalLine);
+            String[] bits = line.split("\\s+", 2); // Split into 2 parts
+            if (bits.length == 0) {
+                listingFile.add(originalLine);
                 continue;
             }
-            // Starting setting location
-            if (parameters[0].equals("LOC")) {
-                currentAddress = Integer.parseInt(parameters[1]);
-                listingFileContent.add(String.format("              %s", originalLine));
-                continue;
-            }
-            // Data instructions
-            if (parameters[0].equals("Data")) {
-                if (parameters.length < 2) {
-                    System.out.println("Data missing " + currentAddress);
-                    listingFileContent.add(String.format("%06o       %s ; Missing value", currentAddress, originalLine));
-                    currentAddress++;
-                    continue;
-                }
-                int dataValue = translator.parseData(parameters[1]);
-                if (dataValue != -1) {
-                    String octalValue = String.format("%06o", dataValue);
-//                    System.out.printf("%06o %s\n", currentAddress, octalValue);
-                    loadFileContent.put(currentAddress, octalValue);
-                    listingFileContent.add(String.format("%06o %s %s", currentAddress, octalValue, originalLine));
-                    lastAddress = Math.max(lastAddress, currentAddress);
-                } else {
-                    System.out.println("Invalid value " + currentAddress);
-                    listingFileContent.add(String.format("%06o       %s ; Undefined label or invalid value", currentAddress, originalLine));
-                }
-                currentAddress++;
-            } else if (parameters[0].endsWith(":")) {
 
-                // Check if there's an instruction after the label
-                if (parameters.length > 1) {
-                    String instruction = parameters[1].trim();
-                    if (instruction.equals("HLT")) {
-                        String hltCode = "000000";
-                        loadFileContent.put(currentAddress, hltCode);
-                        listingFileContent.add(String.format("%06o %s %s", currentAddress, hltCode, originalLine));
-                        currentAddress++;
-                    }
-                } else {
-                    // If  no instruction, add the label
-                    listingFileContent.add(String.format("      %s", originalLine));
-                }
-            }
-            // Rest of the instructions
-            else {
-                String translatedInstruction = translateInstruction(parameters);
-                if (!translatedInstruction.equals("Invalid Instruction")) {
-//                    System.out.printf("%06o %s\n", currentAddress, translatedInstruction);
-                    loadFileContent.put(currentAddress, translatedInstruction);
-                    listingFileContent.add(String.format("%06o %s %s", currentAddress, translatedInstruction, originalLine));
-                    lastAddress = Math.max(lastAddress, currentAddress);
-                } else {
-                    System.out.println("Invalid instruction" + currentAddress);
-                    listingFileContent.add(String.format("%06o       %s ; ERROR: Invalid instruction", currentAddress, originalLine));
-                }
-                currentAddress++;
+            // Handle different instruction types
+            if (bits[0].equals("LOC")) {
+                handleLOC(bits, originalLine);
+            } else if (bits[0].equals("Data")) {
+                handleData(bits, originalLine);
+            } else if (bits[0].endsWith(":")) {
+                handleLabel(bits, originalLine);
+            } else {
+                handleRegularInstruction(bits, originalLine);
             }
         }
     }
 
-    // Switch case for translate functions
-    public String translateInstruction(String[] parameters) {
-        if (parameters.length < 2) return "Invalid Instruction";
+    private void handleLOC(String[] bits, String originalLine) {
+        currentAddress = Integer.parseInt(bits[1]);
+        listingFile.add(String.format("              %s", originalLine));
+    }
 
-        String opcode = parameters[0];
-        String[] params = parameters[1].split(",");
+    private void handleData(String[] bits, String originalLine) {
+        if (bits.length < 2) {
+            System.out.println("Oops, data's missing at " + currentAddress);
+            listingFile.add(String.format("%06o       %s ; Where's the value?", currentAddress, originalLine));
+            currentAddress++;
+            return;
+        }
+        int dataValue = translator.parseData(bits[1]);
+        if (dataValue != -1) {
+            String octalValue = String.format("%06o", dataValue);
+            loadFile.put(currentAddress, octalValue);
+            listingFile.add(String.format("%06o %s %s", currentAddress, octalValue, originalLine));
+            lastAddress = Math.max(lastAddress, currentAddress);
+        } else {
+            System.out.println("That value doesn't look right at " + currentAddress);
+            listingFile.add(String.format("%06o       %s ; Undefined label or wonky value", currentAddress, originalLine));
+        }
+        currentAddress++;
+    }
+
+    private void handleLabel(String[] bits, String originalLine) {
+        if (bits.length > 1) {
+            String instruction = bits[1].trim();
+            if (instruction.equals("HLT")) {
+                String hltCode = "000000";
+                loadFile.put(currentAddress, hltCode);
+                listingFile.add(String.format("%06o %s %s", currentAddress, hltCode, originalLine));
+                currentAddress++;
+            }
+        } else {
+            listingFile.add(String.format("      %s", originalLine));
+        }
+    }
+
+    private void handleRegularInstruction(String[] bits, String originalLine) {
+        String translatedInstruction = translateInstruction(bits);
+        if (!translatedInstruction.equals("Invalid Instruction")) {
+            loadFile.put(currentAddress, translatedInstruction);
+            listingFile.add(String.format("%06o %s %s", currentAddress, translatedInstruction, originalLine));
+            lastAddress = Math.max(lastAddress, currentAddress);
+        } else {
+            System.out.println("Huh? Invalid instruction at " + currentAddress);
+            listingFile.add(String.format("%06o       %s ; ERROR: What's this instruction?", currentAddress, originalLine));
+        }
+        currentAddress++;
+    }
+
+    // Figure out what we're dealing with
+    public String translateInstruction(String[] bits) {
+        if (bits.length < 2) return "Invalid Instruction";
+
+        String opcode = bits[0];
+        String[] params = bits[1].split(",");
 
         return switch (opcode) {
             case "LDR" -> translator.translateLDR(params);
@@ -157,23 +161,24 @@ public class Assembler {
         writeListingFile(listingFilename);
         writeLoadFile(loadFilename);
     }
+
     private void writeListingFile(String filename) {
         try (PrintWriter writer = new PrintWriter(new FileWriter(filename))) {
-            for (String line : listingFileContent) {
+            for (String line : listingFile) {
                 writer.println(line);
             }
-        } catch (IOException e) {
-            System.out.println("writing listing file: " + e.getMessage());
+        } catch (IOException oops) {
+            System.out.println("Uh-oh, trouble writing listing file: " + oops.getMessage());
         }
     }
 
     private void writeLoadFile(String filename) {
         try (PrintWriter writer = new PrintWriter(new FileWriter(filename))) {
-            for (Map.Entry<Integer, String> entry : loadFileContent.entrySet()) {
+            for (Map.Entry<Integer, String> entry : loadFile.entrySet()) {
                 writer.printf("%06o %s\n", entry.getKey(), entry.getValue());
             }
-        } catch (IOException e) {
-            System.out.println("writing load file: " + e.getMessage());
+        } catch (IOException oops) {
+            System.out.println("Rats, can't write load file: " + oops.getMessage());
         }
     }
 }
