@@ -102,7 +102,6 @@ public class Assembler {
                 }
                 currentAddress++;
             } else if (parameters[0].endsWith(":")) {
-                String label = parameters[0].substring(0, parameters[0].length() - 1);
 
                 // Check if there's an instruction after the label
                 if (parameters.length > 1) {
